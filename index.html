@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AIRSPEC Web – Compressed Air Sizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: light dark;
+      --primary: #2563eb;
+      --bg: #0b1120;
+      --card: #020617;
+      --border: #1e293b;
+      --accent-text: #e5e7eb;
+    }
+
+    body {
+      margin: 0;
+      background: #020617;
+      color: #f9fafb;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1100px;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      box-shadow: 0 15px 40px rgba(15, 23, 42, 0.8);
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+    }
+
+    .subtitle {
+      color: #9ca3af;
+      margin-bottom: 18px;
+    }
+
+    .steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+
+    .step-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      color: #9ca3af;
+    }
+
+    .step-pill.active {
+      background: var(--primary);
+      color: white;
+      border-color: transparent;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: #d1d5db;
+      margin-bottom: 4px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 70px;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border-radius: 999px;
+      padding: 9px 18px;
+      border: 1px solid transparent;
+      font-size: 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: #e5e7eb;
+      border-color: #374151;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .kpi {
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      padding: 10px 12px;
+      background: linear-gradient(145deg, #020617, #020617);
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .kpi-value {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 700px) {
+      .card {
+        padding: 14px;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>AIRSPEC Web</h1>
+      <div class="subtitle">Compressed air sizing & ROI – browser-based pilot.</div>
+
+      <div class="steps" id="stepsBar">
+        <!-- Filled dynamically -->
+      </div>
+
+      <!-- Screens -->
+      <div id="screen-project">
+        <h2>1. Project Setup</h2>
+        <div class="grid">
+          <div>
+            <div class="field">
+              <label>Facility Name</label>
+              <input id="proj-name" placeholder="e.g. ACME CNC Plant" />
+            </div>
+            <div class="field">
+              <label>Client Contact</label>
+              <input id="proj-contact" placeholder="Name" />
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input id="proj-email" type="email" placeholder="name@example.com" />
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Location</label>
+              <input id="proj-location" placeholder="City, State" />
+            </div>
+            <div class="field">
+              <label>Industry</label>
+              <input id="proj-industry" placeholder="e.g. Metal Fabrication" />
+            </div>
+            <div class="field">
+              <label>Notes</label>
+              <textarea id="proj-notes" placeholder="Visit notes, key loads, constraints…"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="buttons">
+          <button class="btn-primary" onclick="goNext()">Next: Facility Inputs →</button>
+        </div>
+      </div>
+
+      <div id="screen-facility" class="hidden">
+        <h2>2. Facility Inputs</h2>
+        <div class="grid">
+          <div>
+            <div class="field">
+              <label>Hours per Day</label>
+              <input id="fac-hours" type="number" min="1" max="24" value="8" />
+            </div>
+            <div class="field">
+              <label>Days per Week</label>
+              <input id="fac-days" type="number" min="1" max="7" value="5" />
+            </div>
+            <div class="field">
+              <label>Shifts</label>
+              <select id="fac-shifts">
+                <option value="1">1 Shift</option>
+                <option value="2">2 Shifts</option>
+                <option value="3">3 Shifts</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Voltage</label>
+              <input id="fac-voltage" placeholder="e.g. 480V" value="480V" />
+            </div>
+            <div class="field">
+              <label>Max Amps Available</label>
+              <input id="fac-amps" type="number" value="200" />
+            </div>
+            <div class="field">
+              <label>Installation</label>
+              <select id="fac-install">
+                <option value="indoor">Indoor</option>
+                <option value="outdoor">Outdoor</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="buttons">
+          <button class="btn-secondary" onclick="goPrev()">← Back</button>
+          <button class="btn-primary" onclick="goNext()">Next: Air Demand →</button>
+        </div>
+      </div>
+
+      <div id="screen-demand" class="hidden">
+        <h2>3. Air Demand (Simple)</h2>
+        <div class="grid">
+          <div>
+            <div class="field">
+              <label>Total Average CFM</label>
+              <input id="dem-total-cfm" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label>Peak CFM</label>
+              <input id="dem-peak-cfm" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label>Operating PSI</label>
+              <input id="dem-psi" type="number" min="0" value="100" />
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Duty Cycle (%)</label>
+              <input id="dem-duty" type="number" min="0" max="100" value="60" />
+            </div>
+            <div class="field">
+              <label>Existing Tank Size (gal) – if any</label>
+              <input id="dem-tank" type="number" min="0" value="0" />
+            </div>
+            <p class="note">
+              For v1 this is a simple aggregate input. A later version can add per-machine entries and log imports.
+            </p>
+          </div>
+        </div>
+        <div class="buttons">
+          <button class="btn-secondary" onclick="goPrev()">← Back</button>
+          <button class="btn-primary" onclick="goNext()">Next: Air Quality →</button>
+        </div>
+      </div>
+
+      <div id="screen-quality" class="hidden">
+        <h2>4. Air Quality</h2>
+        <div class="grid">
+          <div>
+            <div class="field">
+              <label>ISO Air Class</label>
+              <select id="aq-iso">
+                <option value="unknown">Not Specified</option>
+                <option value="class1">Class 1</option>
+                <option value="class2">Class 2</option>
+                <option value="class3">Class 3</option>
+                <option value="class4">Class 4</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Oil-Free Required?</label>
+              <select id="aq-oilfree">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Dryer Type</label>
+              <select id="aq-dryer">
+                <option value="refrigerated">Refrigerated</option>
+                <option value="desiccant">Desiccant</option>
+                <option value="none">None</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Filtration</label>
+              <select id="aq-filters" multiple size="4">
+                <option value="particulate">Particulate</option>
+                <option value="coalescing" selected>Coalescing</option>
+                <option value="carbon">Carbon</option>
+                <option value="other">Other / Special</option>
+              </select>
+            </div>
+            <p class="note">
+              Multiple selections allowed. In a later version this could drive specific filter model recommendations.
+            </p>
+          </div>
+        </div>
+        <div class="buttons">
+          <button class="btn-secondary" onclick="goPrev()">← Back</button>
+          <button class="btn-primary" onclick="runSizing()">Next: Sizing Result →</button>
+        </div>
+      </div>
+
+      <div id="screen-sizing" class="hidden">
+        <h2>5. Sizing Result (Placeholder Logic)</h2>
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-label">Required CFM</div>
+            <div class="kpi-value" id="kpi-required-cfm">–</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Recommended HP</div>
+            <div class="kpi-value" id="kpi-hp">–</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Operating PSI</div>
+            <div class="kpi-value" id="kpi-psi">–</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Tank Size (gal)</div>
+            <div class="kpi-value" id="kpi-tank">–</div>
+          </div>
+        </div>
+        <p class="note">
+          Current sizing uses a simple rule-of-thumb: required CFM = max(avg, 0.8 × peak), HP ≈ CFM / 4, storage ≈ 4 gal per CFM.
+          We can refine this with real Kaeser curves and your load-profile rules.
+        </p>
+        <h3>Technology Hint</h3>
+        <p id="tech-hint" class="note"></p>
+
+        <div class="buttons">
+          <button class="btn-secondary" onclick="goPrev()">← Back</button>
+          <button class="btn-primary" onclick="goNext()">Next: ROI →</button>
+        </div>
+      </div>
+
+      <div id="screen-roi" class="hidden">
+        <h2>6. ROI (Simple Model)</h2>
+        <div class="grid">
+          <div>
+            <h3>Current System</h3>
+            <div class="field">
+              <label>Current HP</label>
+              <input id="roi-cur-hp" type="number" value="25" />
+            </div>
+            <div class="field">
+              <label>Energy Rate ($/kWh)</label>
+              <input id="roi-rate" type="number" value="0.20" step="0.01" />
+            </div>
+            <div class="field">
+              <label>Hours per Year</label>
+              <input id="roi-hours" type="number" value="4000" />
+            </div>
+            <div class="field">
+              <label>Annual Maintenance ($)</label>
+              <input id="roi-cur-maint" type="number" value="2500" />
+            </div>
+          </div>
+          <div>
+            <h3>Proposed System</h3>
+            <div class="field">
+              <label>New HP (from sizing)</label>
+              <input id="roi-new-hp" type="number" value="0" />
+            </div>
+            <div class="field">
+              <label>Annual Maintenance ($)</label>
+              <input id="roi-new-maint" type="number" value="1500" />
+            </div>
+            <div class="field">
+              <label>Purchase Price ($)</label>
+              <input id="roi-price" type="number" value="30000" />
+            </div>
+          </div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi">
+            <div class="kpi-label">Annual Energy Savings</div>
+            <div class="kpi-value" id="kpi-energy-save">$0</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Annual Total Savings</div>
+            <div class="kpi-value" id="kpi-total-save">$0</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Simple Payback</div>
+            <div class="kpi-value" id="kpi-payback">– yrs</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">10-Yr Savings</div>
+            <div class="kpi-value" id="kpi-ten">–</div>
+          </div>
+        </div>
+        <p class="note">
+          Energy calc uses kW ≈ HP × 0.746 and assumes 90% motor efficiency. This is intentionally simple for v1.
+          We can refine with specific power (kW / 100 CFM) and part-load profiles.
+        </p>
+
+        <div class="buttons">
+          <button class="btn-secondary" onclick="goPrev()">← Back</button>
+          <button class="btn-primary" onclick="alert('Report generation coming in v2.')">
+            Finish (Report Placeholder)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- App state skeleton (expand later if you want to persist / export) ---
+    const state = {
+      project: {},
+      facility: {},
+      demand: {},
+      quality: {},
+      sizing: {},
+      roi: {}
+    };
+
+    const screens = [
+      "screen-project",
+      "screen-facility",
+      "screen-demand",
+      "screen-quality",
+      "screen-sizing",
+      "screen-roi"
+    ];
+
+    const stepLabels = [
+      "Project",
+      "Facility",
+      "Demand",
+      "Quality",
+      "Sizing",
+      "ROI"
+    ];
+
+    let currentStep = 0;
+
+    function renderSteps() {
+      const bar = document.getElementById("stepsBar");
+      bar.innerHTML = "";
+      stepLabels.forEach((label, idx) => {
+        const span = document.createElement("span");
+        span.textContent = `${idx + 1}. ${label}`;
+        span.className = "step-pill" + (idx === currentStep ? " active" : "");
+        bar.appendChild(span);
+      });
+    }
+
+    function showScreen(index) {
+      currentStep = index;
+      screens.forEach((id, i) => {
+        document.getElementById(id).classList.toggle("hidden", i !== index);
+      });
+      renderSteps();
+    }
+
+    function goNext() {
+      if (currentStep < screens.length - 1) {
+        showScreen(currentStep + 1);
+      }
+    }
+
+    function goPrev() {
+      if (currentStep > 0) {
+        showScreen(currentStep - 1);
+      }
+    }
+
+    // --- Sizing logic (very simple v1) ---
+    function runSizing() {
+      // Capture demand inputs
+      const avgCFM = Number(document.getElementById("dem-total-cfm").value || "0");
+      const peakCFM = Number(document.getElementById("dem-peak-cfm").value || "0");
+      const duty = Number(document.getElementById("dem-duty").value || "60");
+      const psi = Number(document.getElementById("dem-psi").value || "100");
+
+      // Rule-of-thumb CFM
+      const requiredCFM = Math.max(avgCFM, 0.8 * peakCFM);
+      // HP rough rule: ~4 CFM per HP at 100–125 psi
+      const recommendedHP = requiredCFM / 4 || 0;
+      // Storage: say 4 gallons per CFM for now
+      const tankGallons = requiredCFM * 4;
+
+      state.sizing = {
+        requiredCFM,
+        recommendedHP,
+        psi,
+        tankGallons
+      };
+
+      document.getElementById("kpi-required-cfm").textContent =
+        requiredCFM > 0 ? `${requiredCFM.toFixed(0)} CFM` : "–";
+      document.getElementById("kpi-hp").textContent =
+        recommendedHP > 0 ? `${recommendedHP.toFixed(1)} HP` : "–";
+      document.getElementById("kpi-psi").textContent = `${psi.toFixed(0)} PSI`;
+      document.getElementById("kpi-tank").textContent =
+        tankGallons > 0 ? `${tankGallons.toFixed(0)} gal` : "–";
+
+      // Very rough tech hint
+      let hint = "Fixed-speed rotary screw is usually fine for steady loads.";
+      if (duty < 40) hint = "Load varies a lot – consider a VSD rotary screw with storage.";
+      if (duty > 80 && requiredCFM > 150)
+        hint = "High-duty, high-flow – base load fixed-speed + VSD trim may be optimal.";
+
+      document.getElementById("tech-hint").textContent = hint;
+
+      // Seed ROI new HP from sizing
+      document.getElementById("roi-new-hp").value = recommendedHP.toFixed(1);
+
+      showScreen(4);
+    }
+
+    // --- ROI calculation (simple energy model) ---
+    function calcROI() {
+      const curHP = Number(document.getElementById("roi-cur-hp").value || "0");
+      const newHP = Number(document.getElementById("roi-new-hp").value || "0");
+      const rate = Number(document.getElementById("roi-rate").value || "0.2");
+      const hours = Number(document.getElementById("roi-hours").value || "4000");
+      const curMaint = Number(document.getElementById("roi-cur-maint").value || "0");
+      const newMaint = Number(document.getElementById("roi-new-maint").value || "0");
+      const price = Number(document.getElementById("roi-price").value || "0");
+
+      // kW ≈ HP × 0.746 / eff
+      const eff = 0.9;
+      const curKW = (curHP * 0.746) / eff;
+      const newKW = (newHP * 0.746) / eff;
+
+      const curEnergyCost = curKW * hours * rate;
+      const newEnergyCost = newKW * hours * rate;
+
+      const annualEnergySavings = curEnergyCost - newEnergyCost;
+      const annualMaintSavings = curMaint - newMaint;
+      const totalAnnualSavings = annualEnergySavings + annualMaintSavings;
+
+      const paybackYears = totalAnnualSavings > 0 ? price / totalAnnualSavings : Infinity;
+      const tenYearSavings = totalAnnualSavings * 10;
+
+      // Update KPI text
+      document.getElementById("kpi-energy-save").textContent =
+        "$" + annualEnergySavings.toFixed(0);
+      document.getElementById("kpi-total-save").textContent =
+        "$" + totalAnnualSavings.toFixed(0);
+      document.getElementById("kpi-payback").textContent =
+        isFinite(paybackYears) ? paybackYears.toFixed(1) + " yrs" : "–";
+      document.getElementById("kpi-ten").textContent =
+        "$" + tenYearSavings.toFixed(0);
+    }
+
+    // Recalc ROI whenever ROI screen is shown
+    const roiScreen = document.getElementById("screen-roi");
+    roiScreen.addEventListener("input", () => {
+      calcROI();
+    });
+
+    // Initial
+    showScreen(0);
+  </script>
+</body>
+</html>
