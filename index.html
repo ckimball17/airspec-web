@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>AIRSPEC Web – Compressed Air Sizer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -165,6 +167,18 @@
       margin-top: 6px;
     }
 
+    .chart-container {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: #020617;
+    }
+
+    .chart-container canvas {
+      max-height: 220px;
+    }
+
     @media (max-width: 700px) {
       .card {
         padding: 14px;
@@ -179,11 +193,9 @@
       <h1>AIRSPEC Web</h1>
       <div class="subtitle">Compressed air sizing & ROI – browser-based pilot.</div>
 
-      <div class="steps" id="stepsBar">
-        <!-- Filled dynamically -->
-      </div>
+      <div class="steps" id="stepsBar"></div>
 
-      <!-- Screens -->
+      <!-- 1. Project -->
       <div id="screen-project">
         <h2>1. Project Setup</h2>
         <div class="grid">
@@ -221,6 +233,7 @@
         </div>
       </div>
 
+      <!-- 2. Facility -->
       <div id="screen-facility" class="hidden">
         <h2>2. Facility Inputs</h2>
         <div class="grid">
@@ -266,6 +279,7 @@
         </div>
       </div>
 
+      <!-- 3. Demand -->
       <div id="screen-demand" class="hidden">
         <h2>3. Air Demand (Simple)</h2>
         <div class="grid">
@@ -303,6 +317,7 @@
         </div>
       </div>
 
+      <!-- 4. Quality -->
       <div id="screen-quality" class="hidden">
         <h2>4. Air Quality</h2>
         <div class="grid">
@@ -354,6 +369,7 @@
         </div>
       </div>
 
+      <!-- 5. Sizing -->
       <div id="screen-sizing" class="hidden">
         <h2>5. Sizing Result (Placeholder Logic)</h2>
         <div class="kpi-row">
@@ -378,6 +394,12 @@
           Current sizing uses a simple rule-of-thumb: required CFM = max(avg, 0.8 × peak), HP ≈ CFM / 4, storage ≈ 4 gal per CFM.
           We can refine this with real Kaeser curves and your load-profile rules.
         </p>
+
+        <div class="chart-container">
+          <div class="kpi-label">Sizing Snapshot</div>
+          <canvas id="sizingChart"></canvas>
+        </div>
+
         <h3>Technology Hint</h3>
         <p id="tech-hint" class="note"></p>
 
@@ -387,6 +409,7 @@
         </div>
       </div>
 
+      <!-- 6. ROI -->
       <div id="screen-roi" class="hidden">
         <h2>6. ROI (Simple Model)</h2>
         <div class="grid">
@@ -444,6 +467,17 @@
             <div class="kpi-value" id="kpi-ten">–</div>
           </div>
         </div>
+
+        <div class="chart-container">
+          <div class="kpi-label">Annual Cost Comparison</div>
+          <canvas id="annualCostChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <div class="kpi-label">10-Year Total Cost of Ownership</div>
+          <canvas id="tcoChart"></canvas>
+        </div>
+
         <p class="note">
           Energy calc uses kW ≈ HP × 0.746 and assumes 90% motor efficiency. This is intentionally simple for v1.
           We can refine with specific power (kW / 100 CFM) and part-load profiles.
@@ -460,14 +494,9 @@
   </div>
 
   <script>
-    // --- App state skeleton (expand later if you want to persist / export) ---
+    // --- App state skeleton ---
     const state = {
-      project: {},
-      facility: {},
-      demand: {},
-      quality: {},
-      sizing: {},
-      roi: {}
+      sizing: {}
     };
 
     const screens = [
@@ -490,6 +519,11 @@
 
     let currentStep = 0;
 
+    // Chart instances
+    let sizingChartInstance = null;
+    let annualChartInstance = null;
+    let tcoChartInstance = null;
+
     function renderSteps() {
       const bar = document.getElementById("stepsBar");
       bar.innerHTML = "";
@@ -507,6 +541,11 @@
         document.getElementById(id).classList.toggle("hidden", i !== index);
       });
       renderSteps();
+
+      // If entering ROI screen, recalc & redraw charts
+      if (screens[index] === "screen-roi") {
+        calcROI();
+      }
     }
 
     function goNext() {
@@ -521,19 +560,15 @@
       }
     }
 
-    // --- Sizing logic (very simple v1) ---
+    // --- Sizing logic ---
     function runSizing() {
-      // Capture demand inputs
       const avgCFM = Number(document.getElementById("dem-total-cfm").value || "0");
       const peakCFM = Number(document.getElementById("dem-peak-cfm").value || "0");
       const duty = Number(document.getElementById("dem-duty").value || "60");
       const psi = Number(document.getElementById("dem-psi").value || "100");
 
-      // Rule-of-thumb CFM
       const requiredCFM = Math.max(avgCFM, 0.8 * peakCFM);
-      // HP rough rule: ~4 CFM per HP at 100–125 psi
       const recommendedHP = requiredCFM / 4 || 0;
-      // Storage: say 4 gallons per CFM for now
       const tankGallons = requiredCFM * 4;
 
       state.sizing = {
@@ -551,7 +586,6 @@
       document.getElementById("kpi-tank").textContent =
         tankGallons > 0 ? `${tankGallons.toFixed(0)} gal` : "–";
 
-      // Very rough tech hint
       let hint = "Fixed-speed rotary screw is usually fine for steady loads.";
       if (duty < 40) hint = "Load varies a lot – consider a VSD rotary screw with storage.";
       if (duty > 80 && requiredCFM > 150)
@@ -562,10 +596,47 @@
       // Seed ROI new HP from sizing
       document.getElementById("roi-new-hp").value = recommendedHP.toFixed(1);
 
+      // Update sizing chart
+      updateSizingChart(requiredCFM, recommendedHP);
+
       showScreen(4);
     }
 
-    // --- ROI calculation (simple energy model) ---
+    function updateSizingChart(requiredCFM, hp) {
+      const ctx = document.getElementById("sizingChart").getContext("2d");
+      const data = {
+        labels: ["Required CFM", "Recommended HP"],
+        datasets: [{
+          data: [requiredCFM, hp],
+          backgroundColor: ["rgba(37, 99, 235, 0.7)", "rgba(56, 189, 248, 0.7)"]
+        }]
+      };
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { ticks: { color: "#e5e7eb" } },
+          y: { ticks: { color: "#e5e7eb" }, beginAtZero: true }
+        }
+      };
+
+      if (sizingChartInstance) {
+        sizingChartInstance.data = data;
+        sizingChartInstance.options = options;
+        sizingChartInstance.update();
+      } else {
+        sizingChartInstance = new Chart(ctx, {
+          type: "bar",
+          data,
+          options
+        });
+      }
+    }
+
+    // --- ROI calculation + charts ---
     function calcROI() {
       const curHP = Number(document.getElementById("roi-cur-hp").value || "0");
       const newHP = Number(document.getElementById("roi-new-hp").value || "0");
@@ -575,7 +646,6 @@
       const newMaint = Number(document.getElementById("roi-new-maint").value || "0");
       const price = Number(document.getElementById("roi-price").value || "0");
 
-      // kW ≈ HP × 0.746 / eff
       const eff = 0.9;
       const curKW = (curHP * 0.746) / eff;
       const newKW = (newHP * 0.746) / eff;
@@ -583,14 +653,17 @@
       const curEnergyCost = curKW * hours * rate;
       const newEnergyCost = newKW * hours * rate;
 
+      const baselineAnnualCost = curEnergyCost + curMaint;
+      const newAnnualCost = newEnergyCost + newMaint;
+
       const annualEnergySavings = curEnergyCost - newEnergyCost;
       const annualMaintSavings = curMaint - newMaint;
-      const totalAnnualSavings = annualEnergySavings + annualMaintSavings;
+      const totalAnnualSavings = baselineAnnualCost - newAnnualCost;
 
-      const paybackYears = totalAnnualSavings > 0 ? price / totalAnnualSavings : Infinity;
+      const paybackYears =
+        totalAnnualSavings > 0 ? price / totalAnnualSavings : Infinity;
       const tenYearSavings = totalAnnualSavings * 10;
 
-      // Update KPI text
       document.getElementById("kpi-energy-save").textContent =
         "$" + annualEnergySavings.toFixed(0);
       document.getElementById("kpi-total-save").textContent =
@@ -599,9 +672,89 @@
         isFinite(paybackYears) ? paybackYears.toFixed(1) + " yrs" : "–";
       document.getElementById("kpi-ten").textContent =
         "$" + tenYearSavings.toFixed(0);
+
+      updateAnnualCostChart(baselineAnnualCost, newAnnualCost);
+      updateTCOChart(baselineAnnualCost, newAnnualCost, price);
     }
 
-    // Recalc ROI whenever ROI screen is shown
+    function updateAnnualCostChart(baselineAnnual, newAnnual) {
+      const ctx = document.getElementById("annualCostChart").getContext("2d");
+      const data = {
+        labels: ["Current", "New"],
+        datasets: [{
+          data: [baselineAnnual, newAnnual],
+          backgroundColor: ["rgba(248, 113, 113, 0.7)", "rgba(52, 211, 153, 0.7)"]
+        }]
+      };
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { ticks: { color: "#e5e7eb" } },
+          y: {
+            ticks: { color: "#e5e7eb" },
+            beginAtZero: true
+          }
+        }
+      };
+
+      if (annualChartInstance) {
+        annualChartInstance.data = data;
+        annualChartInstance.options = options;
+        annualChartInstance.update();
+      } else {
+        annualChartInstance = new Chart(ctx, {
+          type: "bar",
+          data,
+          options
+        });
+      }
+    }
+
+    function updateTCOChart(baselineAnnual, newAnnual, price) {
+      const baselineTen = baselineAnnual * 10;
+      const newTen = newAnnual * 10 + price;
+
+      const ctx = document.getElementById("tcoChart").getContext("2d");
+      const data = {
+        labels: ["Current 10-yr", "New 10-yr"],
+        datasets: [{
+          data: [baselineTen, newTen],
+          backgroundColor: ["rgba(248, 113, 113, 0.7)", "rgba(52, 211, 153, 0.7)"]
+        }]
+      };
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { ticks: { color: "#e5e7eb" } },
+          y: {
+            ticks: { color: "#e5e7eb" },
+            beginAtZero: true
+          }
+        }
+      };
+
+      if (tcoChartInstance) {
+        tcoChartInstance.data = data;
+        tcoChartInstance.options = options;
+        tcoChartInstance.update();
+      } else {
+        tcoChartInstance = new Chart(ctx, {
+          type: "bar",
+          data,
+          options
+        });
+      }
+    }
+
+    // Recalc ROI on any input change within ROI screen
     const roiScreen = document.getElementById("screen-roi");
     roiScreen.addEventListener("input", () => {
       calcROI();
